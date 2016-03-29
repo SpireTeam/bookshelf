@@ -5,6 +5,12 @@
     "es6": true,
     "node": true
   },
+  "globals": {
+    "describe": true,
+    "it": true,
+    "expect": true,
+    "before": true
+  },
   "ecmaFeatures": {
     "destructuring": true,
     "modules": true

@@ -1,5 +1,4 @@
 import _ from 'lodash';
-import semver from 'semver';
 import helpers from './helpers';
 
 // We've supplemented `Events` with a `triggerThen`
@@ -25,17 +24,12 @@ import Errors from './errors';
  * @param {Knex} knex Knex instance.
  */
 function Bookshelf(knex) {
-  let bookshelf = {
-    VERSION: '0.8.1'
+  const bookshelf = {
+    VERSION: '0.9.2'
   };
 
-  let range = '>=0.6.10 <0.9.0';
-  if (!semver.satisfies(knex.VERSION, range)) {
-    throw new Error('The knex version is ' + knex.VERSION + ' which does not satisfy the Bookshelf\'s requirement ' + range);
-  }
+  const Model = bookshelf.Model = BookshelfModel.extend({
 
-  let Model = bookshelf.Model = BookshelfModel.extend({
-    
     _builder: builderFn,
 
     // The `Model` constructor is referenced as a property on the `Bookshelf` instance,
@@ -112,7 +106,7 @@ function Bookshelf(knex) {
      *   A promise resolving to the number of matching rows.
      */
     count(column, options) {
-      return this.forge().count(column, options); 
+      return this.forge().count(column, options);
     },
 
     /**
@@ -120,22 +114,22 @@ function Bookshelf(knex) {
      * @belongsTo Model
      * @description
      *
-     * Simple helper function for retireving all instances of the given model.
+     * Simple helper function for retrieving all instances of the given model.
      *
      * @see Model#fetchAll
      * @returns {Promise<Collection>}
      */
     fetchAll(options) {
-      return this.forge().fetchAll(options); 
+      return this.forge().fetchAll(options);
     }
   })
 
-  let Collection = bookshelf.Collection = BookshelfCollection.extend({
-    
+  const Collection = bookshelf.Collection = BookshelfCollection.extend({
+
     _builder: builderFn
-  
+
   }, {
-  
+
     /**
      * @method Collection.forge
      * @belongsTo Collection
@@ -167,7 +161,7 @@ function Bookshelf(knex) {
      */
      forge
 
-  
+
   });
 
   // The collection also references the correct `Model`, specified above, for creating
@@ -175,7 +169,7 @@ function Bookshelf(knex) {
   Collection.prototype.model = Model;
   Model.prototype.Collection = Collection;
 
-  let Relation = BookshelfRelation.extend({
+  const Relation = BookshelfRelation.extend({
     Model, Collection
   });
 
@@ -197,7 +191,7 @@ function Bookshelf(knex) {
      * rolled back.
      *
      *     var Promise = require('bluebird');
-     *     
+     *
      *     Bookshelf.transaction(function(t) {
      *       return new Library({name: 'Old Books'})
      *         .save(null, {transacting: t})
@@ -207,7 +201,7 @@ function Bookshelf(knex) {
      *             {title: 'Moby Dick'},
      *             {title: 'Hamlet'}
      *           ], function(info) {
-     *     
+     *
      *             // Some validation could take place here.
      *             return new Book(info).save({'shelf_id': model.id}, {transacting: t});
      *           });
@@ -254,7 +248,7 @@ function Bookshelf(knex) {
             throw e;
           }
           if (!process.browser) {
-            require(plugin)(this, options)  
+            require(plugin)(this, options)
           }
         }
       } else if (_.isArray(plugin)) {
@@ -282,15 +276,22 @@ function Bookshelf(knex) {
   // without needing the `new` operator... to make object creation cleaner
   // and more chainable.
   function forge() {
-    let inst = Object.create(this.prototype);
-    let obj = this.apply(inst, arguments);
-    return (Object(obj) === obj ? obj : inst);
+    return new this(...arguments);
   }
 
-  function builderFn(tableName) {
-    let builder = tableName
-      ? knex(tableName)
-      : knex.queryBuilder();
+  function builderFn(tableNameOrBuilder) {
+    let builder = null;
+
+    if (_.isString(tableNameOrBuilder)) {
+      builder = knex(tableNameOrBuilder);
+    } else if (tableNameOrBuilder == null) {
+      builder = knex.queryBuilder();
+    } else {
+      // Assuming here that `tableNameOrBuilder` is a QueryBuilder instance. Not
+      // aware of a way to check that this is the case (ie. using
+      // `Knex.isQueryBuilder` or equivalent).
+      builder = tableNameOrBuilder;
+    }
 
     return builder.on('query', data =>
       this.trigger('query', data)
@@ -300,11 +301,11 @@ function Bookshelf(knex) {
   // Attach `where`, `query`, and `fetchAll` as static methods.
   ['where', 'query'].forEach((method) => {
     Model[method] = Collection[method] = function() {
-      let model = this.forge();
+      const model = this.forge();
       return model[method].apply(model, arguments);
     };
   });
-  
+
   return bookshelf;
 }
 

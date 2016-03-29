@@ -4,7 +4,7 @@ var uuid = require('node-uuid');
 var Promise   = global.testPromise;
 
 var assert    = require('assert')
-var equal     = require('assert').equal;
+var equal     = require('assert').strictEqual;
 var deepEqual = require('assert').deepEqual;
 
 module.exports = function(bookshelf) {
@@ -21,16 +21,14 @@ module.exports = function(bookshelf) {
       del:    function() { return Promise.resolve({}); }
     };
 
-    var checkCount = function(ctx) {
-      var dialect = bookshelf.knex.client.dialect;
-      var formatNumber = {
-        mysql:      _.identity,
-        sqlite3:    _.identity,
-        postgresql: function(count) { return count.toString() }
-      }[dialect];
-      return function(actual, expected) {
-        expect(actual, formatNumber(expected));
-      }
+    var dialect = bookshelf.knex.client.dialect;
+    var formatNumber = {
+      mysql:      _.identity,
+      sqlite3:    _.identity,
+      postgresql: function(count) { return count.toString() }
+    }[dialect];
+    var checkCount = function(actual, expected) {
+      expect(actual, formatNumber(expected));
     };
 
     describe('extend/constructor/initialize', function() {
@@ -76,7 +74,7 @@ module.exports = function(bookshelf) {
         equal(new User().item, 'test');
       });
 
-      it('doesnt have ommitted Backbone properties', function() {
+      it('doesn\'t have ommitted properties', function() {
         equal(User.prototype.changedAttributes, undefined);
         equal((new User()).changedAttributes, undefined);
       });
@@ -304,7 +302,7 @@ module.exports = function(bookshelf) {
 
     describe('refresh', function() {
       var Site = Models.Site;
-      
+
       it('will fetch a record by present attributes without an ID attribute', function() {
         Site.forge({name: 'knexjs.org'}).refresh().then(function (model) {
           expect(model.id).to.equal(1);
@@ -388,6 +386,13 @@ module.exports = function(bookshelf) {
               last_name: 'Griesser',
               site_id: 1
             });
+          });
+      });
+
+      it('resolves to null if no record exists', function() {
+        var model = new Author({id: 200}).fetch()
+          .then(function (model) {
+            equal(model, null);
           });
       });
 
@@ -567,6 +572,27 @@ module.exports = function(bookshelf) {
           site.timestamp = stubTimestamp;
           site.save(null, testOptions).call('destroy');
       });
+
+      it('Will not break with prefixed id, #583', function() {
+
+        var acmeOrg = new Models.OrgModel ({name: "ACME, Inc", is_active: true});
+        var acmeOrg1;
+        return acmeOrg.save ().then (function () {
+          acmeOrg1 = new Models.OrgModel ({id: 1})
+          return acmeOrg1.fetch();
+        }).then (function () {
+          equal (acmeOrg1.attributes.id, 1);
+          equal (acmeOrg1.attributes.name, "ACME, Inc");
+          equal (acmeOrg1.attributes.organization_id, undefined);
+          equal (acmeOrg1.attributes.organization_name, undefined);
+
+          expect (acmeOrg.attributes.name).to.equal ("ACME, Inc");
+          // field name needs to be processed through model.parse
+          equal (acmeOrg.attributes.organization_id, undefined);
+          expect (acmeOrg.attributes.id).to.equal (1);
+        });
+      });
+
     });
 
     describe('destroy', function() {
@@ -667,12 +693,12 @@ module.exports = function(bookshelf) {
 
       it('resets query after completing', function() {
         var posts =  Models.Post.collection();
-        posts.query('where', 'blog_id', 2).count()
+        posts.query('where', 'blog_id', 1).count()
           .then(function(count)  {
             checkCount(count, 2);
             return posts.count();
           })
-          .then(function(count) { checkCount(count, 2); });
+          .then(function(count) { checkCount(count, 5); });
       });
 
     });
@@ -867,7 +893,7 @@ module.exports = function(bookshelf) {
       it('will return the previous value of an attribute the last time it was synced', function() {
         var count = 0;
         var model = new Models.Site({id: 1});
-        equal(model.previous('id'), void 0);
+        equal(model.previous('id'), undefined);
 
         return model.fetch().then(function() {
           deepEqual(model.previousAttributes(), {id: 1, name: 'knexjs.org'});
@@ -879,6 +905,11 @@ module.exports = function(bookshelf) {
           deepEqual(model.changed, {});
         });
 
+      });
+
+      it('will return `undefined` if no attribute is supplied', function() {
+        var model = new Models.Site({id: 1});
+        equal(model.previous(null), undefined);
       });
 
     });
@@ -935,12 +966,9 @@ module.exports = function(bookshelf) {
 
           equal(promise instanceof Promise, true);
 
-          promise.then(function(result) {
-              equal(result, 1);
+          return promise.then(function(results) {
+              deepEqual(results, [1]);
           });
-
-          return promise;
-
       });
 
     });
@@ -955,8 +983,49 @@ module.exports = function(bookshelf) {
 
         deepEqual(_.omit(cloned, 'cid'), _.omit(original, 'cid'));
       });
+
+      it('should contain a copy of internal QueryBuilder object - #945', function() {
+        var original = Post.forge({author: 'Rhys'})
+          .where('share_count', '>', 10)
+          .query('orderBy', 'created_at');
+
+        var cloned = original.clone();
+
+        expect(original.query()).to.not.equal(cloned.query());
+        expect(original.query().toString()).to.equal(cloned.query().toString());
+
+        // Check that a query listener is registered. We must assume that this
+        // is the link to `Model.on('query').
+        expect(cloned.query()._events).to.have.property('query');
+      });
     });
 
+    describe('model.saveMethod', function() {
+      var Post = Models.Post;
+
+      it('should default to insert for new model', function() {
+        var post = Post.forge();
+        post.isNew = function() { return true; }
+        expect(post.saveMethod()).to.equal('insert');
+      });
+
+      it('should default to update for non-new model', function() {
+        var post = Post.forge();
+        post.isNew = function() { return false; }
+        expect(post.saveMethod()).to.equal('update');
+      });
+
+      it('should normalize to lowercase', function() {
+        var post = Post.forge();
+        expect(post.saveMethod({method: 'UpDATe'})).to.equal('update');
+        expect(post.saveMethod({method: 'INSERT'})).to.equal('insert');
+      });
+
+      it('should always update on patch', function() {
+        var post = Post.forge();
+        expect(post.saveMethod({patch: true})).to.equal('update');
+      });
+    });
   });
 
 };

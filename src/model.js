@@ -1,4 +1,4 @@
-import _ from 'lodash';
+import _, { assign, isArray } from 'lodash';
 import createError from 'create-error';
 
 import Sync from './sync';
@@ -58,14 +58,14 @@ import Promise from './base/promise';
  *
  *   Convert attributes by {@link Model#parse parse} before being {@link
  *   Model#set set} on the model.
- *   
+ *
  */
-let BookshelfModel = ModelBase.extend({
+const BookshelfModel = ModelBase.extend({
 
   /**
    * The `hasOne` relation specifies that this table has exactly one of another
    * type of object, specified by a foreign key in the other table.
-   * 
+   *
    *     let Record = bookshelf.Model.extend({
    *       tableName: 'health_records'
    *     });
@@ -80,7 +80,7 @@ let BookshelfModel = ModelBase.extend({
    *     // select * from `health_records` where `patient_id` = 1;
    *     new Patient({id: 1}).related('record').fetch().then(function(model) {
    *       ...
-   *     }); 
+   *     });
    *
    *     // alternatively, if you don't need the relation loaded on the patient's relations hash:
    *     new Patient({id: 1}).record().fetch().then(function(model) {
@@ -97,7 +97,7 @@ let BookshelfModel = ModelBase.extend({
    *
    *   ForeignKey in the `Target` model. By default, the `foreignKey` is assumed to
    *   be the singular form of this model's {@link Model#tableName tableName},
-   *   followed by `_id` / `_{{{@link ModelBase#idAttribute idAttribute}}}`.
+   *   followed by `_id` / `_{{{@link Model#idAttribute idAttribute}}}`.
    *
    * @returns {Model}
    */
@@ -132,14 +132,14 @@ let BookshelfModel = ModelBase.extend({
    *
    *   ForeignKey in the `Target` model. By default, the foreignKey is assumed to
    *   be the singular form of this model's tableName, followed by `_id` /
-   *   `_{{{@link ModelBase#idAttribute idAttribute}}}`.
+   *   `_{{{@link Model#idAttribute idAttribute}}}`.
    *
    * @returns {Collection}
    */
   hasMany(Target, foreignKey) {
     return this._relation('hasMany', Target, {foreignKey}).init(this);
   },
- 
+
   /**
    * The `belongsTo` relationship is used when a model is a member of
    * another `Target` model.
@@ -158,13 +158,13 @@ let BookshelfModel = ModelBase.extend({
    *         return this.belongsTo(Author);
    *       }
    *     });
-   * 
+   *
    *     // select * from `books` where id = 1
    *     // select * from `authors` where id = book.author_id
    *     Book.where({id: 1}).fetch({withRelated: ['author']}).then(function(book) {
    *       console.log(JSON.stringify(book.related('author')));
    *     });
-   * 
+   *
    * @method Model#belongsTo
    *
    * @param {Model} Target
@@ -175,7 +175,7 @@ let BookshelfModel = ModelBase.extend({
    *
    *   ForeignKey in this model. By default, the foreignKey is assumed to
    *   be the singular form of the `Target` model's tableName, followed by `_id` /
-   *   `_{{{@link ModelBase#idAttribute idAttribute}}}`.
+   *   `_{{{@link Model#idAttribute idAttribute}}}`.
    *
    * @returns {Model}
    */
@@ -193,28 +193,23 @@ let BookshelfModel = ModelBase.extend({
    *     let Account = bookshelf.Model.extend({
    *       tableName: 'accounts'
    *     });
-   *     
+   *
    *     let User = bookshelf.Model.extend({
-   *     
    *       tableName: 'users',
-   *     
    *       allAccounts: function () {
    *         return this.belongsToMany(Account);
    *       },
-   *     
    *       adminAccounts: function() {
    *         return this.belongsToMany(Account).query({where: {access: 'admin'}});
    *       },
-   *     
    *       viewAccounts: function() {
    *         return this.belongsToMany(Account).query({where: {access: 'readonly'}});
    *       }
-   *     
-   *     });  
+   *     });
    *
    *  The default key names in the joining table are the singular versions of the
    *  model table names, followed by `_id` /
-   *  _{{{@link ModelBase#idAttribute idAttribute}}}. So in the above case, the
+   *  _{{{@link Model#idAttribute idAttribute}}}. So in the above case, the
    *  columns in the joining table
    *  would be `user_id`, `account_id`, and `access`, which is used as an
    *  example of how dynamic relations can be formed using different contexts.
@@ -229,32 +224,31 @@ let BookshelfModel = ModelBase.extend({
    * {@link Relation#through through} relation:
    *
    *     let Doctor = bookshelf.Model.extend({
-   *     
    *       patients: function() {
    *         return this.belongsToMany(Patient).through(Appointment);
    *       }
-   *     
    *     });
-   *     
+   *
    *     let Appointment = bookshelf.Model.extend({
-   *     
    *       patient: function() {
    *         return this.belongsTo(Patient);
    *       },
-   *     
    *       doctor: function() {
    *         return this.belongsTo(Doctor);
    *       }
-   *     
    *     });
-   *     
+   *
    *     let Patient = bookshelf.Model.extend({
-   *     
    *       doctors: function() {
    *         return this.belongsToMany(Doctor).through(Appointment);
    *       }
-   *     
    *     });
+   *
+   * Collections returned by a `belongsToMany` relation are decorated with
+   * several pivot helper methods. See {@link Collection#attach attach},
+   * {@link Collection#detach detach}, {@link Collection#updatePivot
+   * updatePivot} and {@link Collection#withPivot withPivot} for more
+   * information.
    *
    * @belongsTo Model
    * @method  Model#belongsToMany
@@ -262,22 +256,22 @@ let BookshelfModel = ModelBase.extend({
    *
    *   Constructor of {@link Model} targeted by join.
    *
-   * @param {string=} foreignKey
-   *
-   *   Foreign key in this model. By default, the `foreignKey` is assumed to
-   *   be the singular form of the `Target` model's tableName, followed by `_id` /
-   *   `_{{{@link ModelBase#idAttribute idAttribute}}}`.
-   *
    * @param {string=} table
    *
    *   Name of the joining table. Defaults to the two table names, joined by an
    *   underscore, ordered alphabetically.
    *
+   * @param {string=} foreignKey
+   *
+   *   Foreign key in this model. By default, the `foreignKey` is assumed to
+   *   be the singular form of the `Target` model's tableName, followed by `_id` /
+   *   `_{{{@link Model#idAttribute idAttribute}}}`.
+   *
    * @param {string=} otherKey
    *
    *   Foreign key in the `Target` model. By default, the `otherKey` is assumed to
    *   be the singular form of this model's tableName, followed by `_id` /
-   *   `_{{{@link ModelBase#idAttribute idAttribute}}}`.
+   *   `_{{{@link Model#idAttribute idAttribute}}}`.
    *
    * @returns {Collection}
    */
@@ -344,7 +338,7 @@ let BookshelfModel = ModelBase.extend({
    * Model#morphOne morphOne}, but creating a {@link Collection collection}
    * rather than a {@link Model model} (similar to a {@link Model#hasOne
    * hasOne} vs. {@link Model#hasMany hasMany} relation).
-   *  
+   *
    * {@link Model#morphMany morphMany} is used to signify a {@link oneToMany
    * one-to-many} or {@link manyToMany many-to-many} {@link polymorphicRelation
    * polymorphic relation} with another `Target` model, where the `name` of the
@@ -413,7 +407,7 @@ let BookshelfModel = ModelBase.extend({
    *         return this.morphTo('imageable', ["ImageableType", "ImageableId"], Site, Post);
    *       }
    *     });
-   * 
+   *
    * @method Model#morphTo
    *
    * @param {string}      name        Prefix for `_id` and `_type` columns.
@@ -442,51 +436,51 @@ let BookshelfModel = ModelBase.extend({
    * Helps to create dynamic relations between {@link Model models} and {@link
    * Collection collections}, where a {@link Model#hasOne hasOne}, {@link
    * Model#hasMany hasMany}, {@link Model#belongsTo belongsTo}, or {@link
-   * Model#belongsToMany belongsToMany} relation may run through a `JoinModel`.  
+   * Model#belongsToMany belongsToMany} relation may run through a `JoinModel`.
    *
    * A good example of where this would be useful is if a book {@link
    * Model#hasMany hasMany} paragraphs through chapters. Consider the following examples:
    *
    *
    *     let Book = bookshelf.Model.extend({
-   *     
+   *
    *       tableName: 'books',
-   *     
+   *
    *       // Find all paragraphs associated with this book, by
    *       // passing through the "Chapter" model.
    *       paragraphs: function() {
    *         return this.hasMany(Paragraph).through(Chapter);
    *       },
-   *     
+   *
    *       chapters: function() {
    *         return this.hasMany(Chapter);
    *       }
-   *     
+   *
    *     });
-   *     
+   *
    *     let Chapter = bookshelf.Model.extend({
-   *     
+   *
    *       tableName: 'chapters',
-   *     
+   *
    *       paragraphs: function() {
    *         return this.hasMany(Paragraph);
    *       }
-   *     
+   *
    *     });
-   *     
+   *
    *     let Paragraph = bookshelf.Model.extend({
-   *     
+   *
    *       tableName: 'paragraphs',
-   *     
+   *
    *       chapter: function() {
    *         return this.belongsTo(Chapter);
    *       },
-   *     
+   *
    *       // A reverse relation, where we can get the book from the chapter.
    *       book: function() {
    *         return this.belongsTo(Book).through(Chapter);
    *       }
-   *     
+   *
    *     });
    *
    * The "through" table creates a pivot model, which it assigns to {@link
@@ -500,13 +494,13 @@ let BookshelfModel = ModelBase.extend({
    *
    *   Foreign key in this model. By default, the `foreignKey` is assumed to
    *   be the singular form of the `Target` model's tableName, followed by `_id` /
-   *   `_{{{@link ModelBase#idAttribute idAttribute}}}`.
+   *   `_{{{@link Model#idAttribute idAttribute}}}`.
    *
    * @param {string=} otherKey
    *
    *   Foreign key in the `Interim` model. By default, the `otherKey` is assumed to
    *   be the singular form of this model's tableName, followed by `_id` /
-   *   `_{{{@link ModelBase#idAttribute idAttribute}}}`.
+   *   `_{{{@link Model#idAttribute idAttribute}}}`.
    *
    * @returns {Collection}
    */
@@ -532,7 +526,7 @@ let BookshelfModel = ModelBase.extend({
 
     // If this is new, we use all its attributes. Otherwise we just grab the
     // primary key.
-    let attributes = this.isNew()
+    const attributes = this.isNew()
       ? this.attributes
       : _.pick(this.attributes, this.idAttribute)
 
@@ -542,16 +536,16 @@ let BookshelfModel = ModelBase.extend({
   /**
    * Fetches a {@link Model model} from the database, using any {@link
    * Model#attributes attributes} currently set on the model to form a `select`
-   * query. 
+   * query.
    *
-   * A {@link Model#fetching "fetching"} event will be fired just before the
+   * A {@link Model#event:fetching "fetching"} event will be fired just before the
    * record is fetched; a good place to hook into for validation. {@link
-   * Model#fetched "fetched"} event will be fired when a record is successfully
-   * retrieved.
+   * Model#event:fetched "fetched"} event will be fired when a record is
+   * successfully retrieved.
    *
    * If you need to constrain the query
    * performed by fetch, you can call {@link Model#query query} before calling
-   * {@link Model#fetch fetch}.  
+   * {@link Model#fetch fetch}.
    *
    *     // select * from `books` where `ISBN-13` = '9780440180296'
    *     new Book({'ISBN-13': '9780440180296'})
@@ -566,27 +560,32 @@ let BookshelfModel = ModelBase.extend({
    * {@link Model#query query}, tapping into the {@link Knex} {@link
    * Knex#column column} method to specify which columns will be fetched._
    *
-   * The `withRelated` parameter may be specified to fetch the resource, along
-   * with any specified {@link Model#relations relations} named on the model. A
    * single property, or an array of properties can be specified as a value for
-   * the `withRelated` property. The results of these relation queries will be
-   * loaded into a {@link Model#relations relations} property on the model, may
-   * be retrieved with the {@link Model#related related} method, and will be
-   * serialized as properties on a {@link Model#toJSON toJSON} call unless
-   * `{shallow: true}` is passed.  
+   * the `withRelated` property. You can also execute callbacks on relations
+   * queries (eg. for sorting a relation). The results of these relation queries
+   * will be loaded into a {@link Model#relations relations} property on the
+   * model, may be retrieved with the {@link Model#related related} method, and
+   * will be serialized as properties on a {@link Model#toJSON toJSON} call
+   * unless `{shallow: true}` is passed.
    *
    *     let Book = bookshelf.Model.extend({
    *       tableName: 'books',
    *       editions: function() {
    *         return this.hasMany(Edition);
    *       },
+   *       chapters: function{
+   *         return this.hasMany(Chapter);
+   *       },
    *       genre: function() {
    *         return this.belongsTo(Genre);
    *       }
    *     })
-   *     
+   *
    *     new Book({'ISBN-13': '9780440180296'}).fetch({
-   *       withRelated: ['genre', 'editions']
+   *       withRelated: [
+   *         'genre', 'editions',
+   *         { chapters: function(query) { query.orderBy('chapter_number'); }}
+   *       ]
    *     }).then(function(book) {
    *       console.log(book.related('genre').toJSON());
    *       console.log(book.related('editions').toJSON());
@@ -597,20 +596,24 @@ let BookshelfModel = ModelBase.extend({
    *
    * @param {Object=}  options - Hash of options.
    * @param {boolean=} [options.require=false]
-   *   If `true`, will reject the returned response with a {@link
-   *   Model.NotFoundError NotFoundError} if no result is found.
-   * @param {(string|string[])=} [options.columns='*']
-   *   Limit the number of columns fetched.
-   * @param {Transaction=} options.transacting
+   *   Reject the returned response with a {@link Model.NotFoundError
+   *   NotFoundError} if no results are empty.
+   * @param {string|string[]} [options.columns='*']
+   *   Specify columns to be retireved.
+   * @param {Transaction} [options.transacting]
    *  Optionally run the query in a transaction.
+   * @param {string|Object|mixed[]} [options.withRelated]
+   *  Relations to be retrieved with `Model` instance. Either one or more
+   *  relation names or objects mapping relation names to query callbacks.
    *
    * @fires Model#fetching
    * @fires Model#fetched
    *
    * @throws {Model.NotFoundError}
    *
-   * @returns {Promise<Model|undefined>}
-   *  A promise resolving to the fetched {@link Model model} or `undefined` if none exists.
+   * @returns {Promise<Model|null>}
+   *  A promise resolving to the fetched {@link Model model} or `null` if
+   *  none exists.
    *
    */
   fetch(options) {
@@ -640,8 +643,8 @@ let BookshelfModel = ModelBase.extend({
 
       // If the "withRelated" is specified, we also need to eager load all of the
       // data on the model, as a side-effect, before we ultimately jump into the
-      // next step of the model. Since the `columns` are only relevant to the current
-      // level, ensure those are omitted from the options.
+      // next step of the model. Since the `columns` are only relevant to the
+      // current level, ensure those are omitted from the options.
       .tap(function(response) {
         if (options.withRelated) {
           return this._handleEager(response, _.omit(options, 'columns'));
@@ -655,10 +658,15 @@ let BookshelfModel = ModelBase.extend({
          * event handler for async behaviour.
          *
          * @event Model#fetched
-         * @param {Model}  model    The model firing the event.
-         * @param {Object} reponse  Knex query response.
-         * @param {Object} options  Options object passed to {@link Model#fetch fetch}.
+         * @param {Model} model
+         *   The model firing the event.
+         * @param {Object} reponse
+         *   Knex query response.
+         * @param {Object} options
+         *   Options object passed to {@link Model#fetch fetch}.
          * @returns {Promise}
+         *   If the handler returns a promise, `fetch` will wait for it to
+         *   be resolved.
          */
         return this.triggerThen('fetched', this, response, options);
       })
@@ -671,7 +679,7 @@ let BookshelfModel = ModelBase.extend({
 
   // Private for now.
   all() {
-    let collection = this.constructor.collection();
+    const collection = this.constructor.collection();
     collection._knex = this.query().clone();
     this.resetQuery();
     if (this.relatedData) collection.relatedData = this.relatedData;
@@ -717,7 +725,7 @@ let BookshelfModel = ModelBase.extend({
    * @param {Object=}  options - Hash of options.
    * @param {boolean=} [options.require=false]
    *
-   *  Rejects the returned promise with an `EmptyError` if no records are returned.
+   *  Rejects the returned promise with an `Collection.EmptyError` if no records are returned.
    *
    * @param {Transaction=} options.transacting
    *
@@ -726,7 +734,7 @@ let BookshelfModel = ModelBase.extend({
    * @fires Model#"fetching:collection"
    * @fires Model#"fetched:collection"
    *
-   * @throws {Model.EmptyError}
+   * @throws {Collection.EmptyError}
    *
    *  Rejects the promise in the event of an empty response if the `require: true` option.
    *
@@ -734,7 +742,7 @@ let BookshelfModel = ModelBase.extend({
    *
    */
   fetchAll(options) {
-    let collection = this.all();
+    const collection = this.all();
     return collection
       .once('fetching', (__, columns, opts) => {
         /**
@@ -781,7 +789,7 @@ let BookshelfModel = ModelBase.extend({
    *     JSON.stringify(model);
    *   });
    * });
-   * 
+   *
    * {
    *   title: 'post title',
    *   author: {...},
@@ -790,7 +798,7 @@ let BookshelfModel = ModelBase.extend({
    *     {tags: [...]}, {tags: [...]}
    *   ]
    * }
-   *  
+   *
    * @param {string|string[]} relations The relation, or relations, to be loaded.
    * @param {Object=}      options Hash of options.
    * @param {Transaction=} options.transacting
@@ -798,17 +806,11 @@ let BookshelfModel = ModelBase.extend({
    * @returns {Promise<Model>} A promise resolving to this {@link Model model}
    */
   load: Promise.method(function(relations, options) {
-    return Promise.bind(this)
-      .then(function() {
-        return [this.format(_.extend(Object.create(null), this.attributes))];
-      })
-      .then(function(response) {
-        return this._handleEager(response, _.extend({}, options, {
-          shallow: true,
-          withRelated: _.isArray(relations) ? relations : [relations]
-        }));
-      })
-      .return(this);
+    const columns = this.format({ ...this.attributes });
+    const withRelated = isArray(relations) ? relations : [relations];
+    return this._handleEager(
+      [columns], { ...options, shallow: true, withRelated }
+    ).return(this);
   }),
 
   /**
@@ -818,7 +820,7 @@ let BookshelfModel = ModelBase.extend({
    * `save` is used to perform either an insert or update query using the
    * model's set {@link Model#attributes attributes}.
    *
-   * If the model {@link ModelBase#isNew isNew}, any {@link Model#defaults defaults}
+   * If the model {@link Model#isNew isNew}, any {@link Model#defaults defaults}
    * will be set and an `insert` query will be performed. Otherwise it will
    * `update` the record with a corresponding ID. This behaviour can be overriden
    * with the `method` option.
@@ -852,14 +854,14 @@ let BookshelfModel = ModelBase.extend({
    *     Model.forge({id: 5, firstName: "John", lastName: "Smith"}).save().then(function() { //...
    *
    *     // Or add attributes during save
-   *     Model.forge({id: 5}).save({firstName: "John", latName: "Smith"}).then(function() { //...
+   *     Model.forge({id: 5}).save({firstName: "John", lastName: "Smith"}).then(function() { //...
    *
    *     // Or, if you prefer, for a single attribute
    *     Model.forge({id: 5}).save('name', 'John Smith').then(function() { //...
    *
    * @param {string=}      key                      Attribute name.
    * @param {string=}      val                      Attribute value.
-   * @param {Object=}      attrs                    A has of attributes.
+   * @param {Object=}      attrs                    A hash of attributes.
    * @param {Object=}      options
    * @param {Transaction=} options.transacting
    *   Optionally run the query in a transaction.
@@ -905,7 +907,7 @@ let BookshelfModel = ModelBase.extend({
       // If the object is being created, we merge any defaults here rather than
       // during object creation.
       if (method === 'insert' || options.defaults) {
-        let defaults = _.result(this, 'defaults');
+        const defaults = _.result(this, 'defaults');
         if (defaults) {
           attrs = _.extend({}, defaults, this.attributes, attrs);
         }
@@ -928,7 +930,7 @@ let BookshelfModel = ModelBase.extend({
 
       // Gives access to the `query` object in the `options`, in case we need it
       // in any event handlers.
-      let sync = this.sync(options);
+      const sync = this.sync(options);
       options.query = sync.query;
 
       /**
@@ -940,7 +942,7 @@ let BookshelfModel = ModelBase.extend({
        *
        * @event Model#saving
        * @param {Model}  model    The model firing the event.
-       * @param {Object} attrs    Model firing the event.
+       * @param {Object} attrs    Attributes that will be inserted or updated.
        * @param {Object} options  Options object passed to {@link Model#save save}.
        * @returns {Promise}
        */
@@ -954,7 +956,7 @@ let BookshelfModel = ModelBase.extend({
        *
        * @event Model#creating
        * @param {Model}  model    The model firing the event.
-       * @param {Object} attrs    Model firing the event.
+       * @param {Object} attrs    Attributes that will be inserted.
        * @param {Object} options  Options object passed to {@link Model#save save}.
        * @returns {Promise}
        */
@@ -968,7 +970,7 @@ let BookshelfModel = ModelBase.extend({
        *
        * @event Model#updating
        * @param {Model}  model    The model firing the event.
-       * @param {Object} attrs    Model firing the event.
+       * @param {Object} attrs    Attributes that will be updated.
        * @param {Object} options  Options object passed to {@link Model#save save}.
        * @returns {Promise}
        */
@@ -981,7 +983,10 @@ let BookshelfModel = ModelBase.extend({
 
         // After a successful database save, the id is updated if the model was created
         if (method === 'insert' && this.id == null) {
-          this.attributes[this.idAttribute] = this.id = resp[0];
+          const updatedCols = {};
+          updatedCols[this.idAttribute] = this.id = resp[0];
+          const updatedAttrs = this.parse(updatedCols);
+          assign(this.attributes, updatedAttrs);
         } else if (method === 'update' && resp === 0) {
           if (options.require !== false) {
             throw new this.constructor.NoRowsUpdatedError('No Rows Updated');
@@ -997,7 +1002,7 @@ let BookshelfModel = ModelBase.extend({
         /**
          * Saved event.
          *
-         * Fired before after an `insert` or `update` query.
+         * Fired after an `insert` or `update` query.
          *
          * @event Model#saved
          * @param {Model}  model    The model firing the event.
@@ -1009,7 +1014,7 @@ let BookshelfModel = ModelBase.extend({
         /**
          * Created event.
          *
-         * Fired before after an `insert` query.
+         * Fired after an `insert` query.
          *
          * @event Model#created
          * @param {Model}  model    The model firing the event.
@@ -1021,7 +1026,7 @@ let BookshelfModel = ModelBase.extend({
         /**
          * Updated event.
          *
-         * Fired before after an `update` query.
+         * Fired after an `update` query.
          *
          * @event Model#updated
          * @param {Model}  model    The model firing the event.
@@ -1038,7 +1043,7 @@ let BookshelfModel = ModelBase.extend({
 
   /**
    * `destroy` performs a `delete` on the model, using the model's {@link
-   * ModelBase#idAttribute idAttribute} to constrain the query.
+   * Model#idAttribute idAttribute} to constrain the query.
    *
    * A {@link Model#destroying "destroying"} event is triggered on the model before being
    * destroyed. To prevent destroying the model (with validation, etc.), throwing an error
@@ -1052,6 +1057,8 @@ let BookshelfModel = ModelBase.extend({
    *
    * @param {Object=}      options                  Hash of options.
    * @param {Transaction=} options.transacting      Optionally run the query in a transaction.
+   * @param {bool} [options.require=true]
+   *   Throw a {@link Model.NoRowsDeletedError} if no records are affected by destroy.
    *
    * @example
    *
@@ -1063,10 +1070,14 @@ let BookshelfModel = ModelBase.extend({
    *
    * @fires Model#destroying
    * @fires Model#destroyed
+   *
+   * @throws {Model.NoRowsDeletedError}
+   *
+   * @returns {Promise<Model>} A promise resolving to the destroyed and thus "empty" model.
    */
   destroy: Promise.method(function(options) {
     options = options ? _.clone(options) : {};
-    let sync = this.sync(options);
+    const sync = this.sync(options);
     options.query = sync.query;
     return Promise.bind(this).then(function() {
 
@@ -1096,7 +1107,7 @@ let BookshelfModel = ModelBase.extend({
        * Destroyed event.
        *
        * Fired before a `delete` query. A promise may be returned from the event
-       * handler for async behaviour. 
+       * handler for async behaviour.
        *
        * @event Model#destroyed
        * @param {Model}  model    The model firing the event.
@@ -1138,19 +1149,19 @@ let BookshelfModel = ModelBase.extend({
    *   .then(function(model) {
    *     // ...
    *   });
-   *   
+   *
    * model
    *   .query({where: {other_id: '5'}, orWhere: {key: 'value'}})
    *   .fetch()
    *   .then(function(model) {
    *     // ...
    *   });
-   *   
+   *
    * model.query(function(qb) {
    *   qb.where('other_person', 'LIKE', '%Demo').orWhere('other_id', '>', 10);
    * }).fetch()
    *   .then(function(model) { // ...
-   *   
+   *
    * let qb = model.query();
    *     qb.where({id: 1}).select().then(function(resp) { // ...
    *
@@ -1191,9 +1202,17 @@ let BookshelfModel = ModelBase.extend({
    *
    * @see Model#query
    */
-  where() {
-    let args = _.toArray(arguments);
-    return this.query.apply(this, ['where'].concat(args));
+  where(...args) {
+    return this.query('where', ...args);
+  },
+
+  /* Ensure that QueryBuilder is copied on clone. */
+  clone() {
+    const cloned = ModelBase.prototype.clone.apply(this, arguments);
+    if (this._knex != null) {
+      cloned._knex = cloned._builder(this._knex.clone());
+    }
+    return cloned;
   },
 
   /**
@@ -1236,7 +1255,7 @@ let BookshelfModel = ModelBase.extend({
    * @todo: {silent: true, parse: true}, for parity with collection#set
    */
   _handleResponse(response) {
-    let relatedData = this.relatedData;
+    const relatedData = this.relatedData;
     this.set(this.parse(response[0]), {silent: true})._reset();
     if (relatedData && relatedData.isJoined()) {
       relatedData.parsePivot([this]);
@@ -1263,18 +1282,18 @@ let BookshelfModel = ModelBase.extend({
      * @class Model.NotFoundError
      * @description
      *
-     *   Thrown when no records are found by {@link Model#fetch fetch}, {@link
-     *   Model#fetchAll fetchAll} or {@link Model#refresh} when called with the
+     *   Thrown when no records are found by {@link Model#fetch fetch} or
+     *   {@link Model#refresh} when called with the
      *   `{require: true}` option.
      */
     child.NotFoundError = createError(this.NotFoundError)
 
     /**
-     * @class Model.NoRowsUpdated
+     * @class Model.NoRowsUpdatedError
      * @description
      *
-     *   Thrown when no records are found by {@link Model#fetch fetch} or
-     *   {@link Model#refresh} unless called with the `{require: false}` option.
+     *   Thrown when no records are saved by {@link Model#save save}
+     *   unless called with the `{require: false}` option.
      */
     child.NoRowsUpdatedError = createError(this.NoRowsUpdatedError)
 

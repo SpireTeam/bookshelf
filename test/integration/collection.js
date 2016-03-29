@@ -13,15 +13,13 @@ module.exports = function(bookshelf) {
     var json    = function(model) {
       return JSON.parse(JSON.stringify(model));
     };
-    var checkCount = function(ctx) {
-      var formatNumber = {
-        mysql:      _.identity,
-        sqlite3:    _.identity,
-        postgresql: function(count) { return count.toString() }
-      }[dialect];
-      return function(actual, expected) {
-        expect(actual, formatNumber(expected));
-      }
+    var formatNumber = {
+      mysql:      _.identity,
+      sqlite3:    _.identity,
+      postgresql: function(count) { return count.toString() }
+    }[dialect];
+    var checkCount = function(actual, expected) {
+      expect(actual).to.equal(formatNumber(expected));
     };
     var checkTest = function(ctx) {
       return function(resp) {
@@ -154,6 +152,17 @@ module.exports = function(bookshelf) {
           });
 
       });
+
+      it ('resolves to null if no model exists', function() {
+
+        return new Site({id:1})
+          .authors()
+          .query({where: {id: 40}})
+          .fetchOne()
+          .then(function(model) {
+            equal(model, null);
+          });
+      })
 
     });
 
@@ -292,6 +301,24 @@ module.exports = function(bookshelf) {
       });
     });
 
+    describe('clone', function() {
+
+      it('should contain a copy of internal QueryBuilder object - #945', function() {
+
+        var original = Post.collection()
+          .query('where', 'share_count', '>', 10)
+          .query('orderBy', 'created_at');
+
+        var cloned = original.clone();
+
+        expect(original.query()).to.not.equal(cloned.query());
+        expect(original.query().toString()).to.equal(cloned.query().toString());
+
+        // Check that a query listener is registered. We must assume that this
+        // is the link to `Model.on('query').
+        expect(cloned.query()._events).to.have.property('query');
+      });
+    });
   });
 
 };

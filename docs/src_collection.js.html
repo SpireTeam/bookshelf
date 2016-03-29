@@ -110,11 +110,10 @@ import createError from 'create-error';
  * @param {bool} [options.comparator=false]
  *   {@link Collection#comparator Comparator} for collection, or `false` to disable sorting.
  */
-let BookshelfCollection = CollectionBase.extend({
+const BookshelfCollection = CollectionBase.extend({
 
   /**
    * @method Collection#through
-   * @private
    * @description
    * Used to define passthrough relationships - `hasOne`, `hasMany`, `belongsTo`
    * or `belongsToMany`, "through" an `Interim` model or collection.
@@ -150,7 +149,7 @@ let BookshelfCollection = CollectionBase.extend({
    *   Upon a sucessful query resulting in no records returns. Only fired if `require: true` is passed as an option.
    *
    * @param {Object=} options
-   * @param {bool} [options.required=false] Trigger a {@link Collection.EmptyError} if no records are found.
+   * @param {bool} [options.require=false] Trigger a {@link Collection.EmptyError} if no records are found.
    * @param {string|string[]} [options.withRelated=[]] A relation, or list of relations, to be eager loaded as part of the `fetch` operation.
    * @returns {Promise&lt;Collection>}
    */
@@ -211,7 +210,7 @@ let BookshelfCollection = CollectionBase.extend({
    * @example
    *
    * // select count(*) from shareholders where company_id = 1 and share &amp;gt; 0.1;
-   * Company.forge(({id:1})
+   * Company.forge({id:1})
    *   .shareholders()
    *   .query('where', 'share', '>', '0.1')
    *   .count()
@@ -246,7 +245,7 @@ let BookshelfCollection = CollectionBase.extend({
    * like to return a single model from the associated collection.
    *
    * @example
-   * 
+   *
    * // select * from authors where site_id = 1 and id = 2 limit 1;
    * new Site({id:1})
    *   .authors()
@@ -266,11 +265,11 @@ let BookshelfCollection = CollectionBase.extend({
    *  Optionally run the query in a transaction.
    *
    * @throws {Model.NotFoundError}
-   * @returns {Promise&lt;Model|undefined>}
-   *  A promise resolving to the fetched {@link Model model} or `undefined` if none exists.
+   * @returns {Promise&lt;Model|null>}
+   *  A promise resolving to the fetched {@link Model model} or `null` if none exists.
    */
   fetchOne: Promise.method(function(options) {
-    let model = new this.model();
+    const model = new this.model();
     model._knex = this.query().clone();
     this.resetQuery();
     if (this.relatedData) model.relatedData = this.relatedData;
@@ -304,11 +303,25 @@ let BookshelfCollection = CollectionBase.extend({
    * @method Collection#create
    * @description
    *
-   * Convenience to create a new instance of a {@link Model model} within a
+   * Convenience method to create a new {@link Model model} instance within a
    * collection. Equivalent to instantiating a model with a hash of {@link
    * Model#attributes attributes}, {@link Model#save saving} the model to the
-   * database, and adding the model to the collection after being successfully
-   * created.
+   * database then adding the model to the collection.
+   *
+   * When used on a relation, `create` will automatically set foreign key
+   * attributes before persisting the `Model`.
+   *
+   * ```
+   * const { courses, ...attributes } = req.body;
+   *
+   * Student.forge(attributes).save().tap(student =>
+   *   Promise.map(courses, course => student.related('courses').create(course))
+   * ).then(student =>
+   *   res.status(200).send(student)
+   * ).catch(error =>
+   *   res.status(500).send(error.message)
+   * );
+   * ```
    *
    * @param {Object} model A set of attributes to be set on the new model.
    * @param {Object=} options
@@ -318,8 +331,8 @@ let BookshelfCollection = CollectionBase.extend({
    * model}.
    */
   create: Promise.method(function(model, options) {
-    options = options ? _.clone(options) : {};
-    let relatedData = this.relatedData;
+    options = options != null ? _.clone(options) : {};
+    const { relatedData } = this;
     model = this._prepareModel(model, options);
 
     // If we've already added things on the query chain,
@@ -370,12 +383,12 @@ let BookshelfCollection = CollectionBase.extend({
    *
    * let qb = collection.query();
    *     qb.where({id: 1}).select().then(function(resp) {...
-   * 
+   *
    * collection.query(function(qb) {
    *   qb.where('id', '>', 5).andWhere('first_name', '=', 'Test');
    * }).fetch()
    *   .then(function(collection) {...
-   * 
+   *
    * collection
    *   .query('where', 'other_id', '=', '5')
    *   .fetch()
@@ -402,6 +415,15 @@ let BookshelfCollection = CollectionBase.extend({
     return new Sync(this, options);
   },
 
+  /* Ensure that QueryBuilder is copied on clone. */
+  clone() {
+    const cloned = CollectionBase.prototype.clone.apply(this, arguments);
+    if (this._knex != null) {
+      cloned._knex = cloned._builder(this._knex.clone());
+    }
+    return cloned;
+  },
+
   /**
    * @method Collection#_handleResponse
    * @private
@@ -410,7 +432,7 @@ let BookshelfCollection = CollectionBase.extend({
    * collection's `fetch` call.
    */
   _handleResponse: function(response) {
-    let relatedData = this.relatedData;
+    const { relatedData } = this;
     this.set(response, {silent: true, parse: true}).invoke('_reset');
     if (relatedData &amp;&amp; relatedData.isJoined()) {
       relatedData.parsePivot(this.models);
@@ -424,17 +446,19 @@ let BookshelfCollection = CollectionBase.extend({
    * Handle the related data loading on the collection.
    */
   _handleEager: function(response, options) {
-    return new EagerRelation(this.models, response, new this.model()).fetch(options);
+    return new EagerRelation(this.models, response, new this.model())
+      .fetch(options);
   }
 
 }, {
 
   extended: function(child) {
     /**
-     * @class Collection.NotFoundError
+     * @class Collection.EmptyError
      * @description
      *   Thrown when no records are found by {@link Collection#fetch fetch},
-     *   when called with the `{require: true}` option.
+     *   {@link Model#fetchAll}, or {@link Model.fetchAll} when called with
+     *   the `{require: true}` option.
      */
     child.EmptyError = createError(this.EmptyError)
   }
@@ -457,10 +481,10 @@ export default BookshelfCollection;
       <footer>
         <div>
           Documentation generated by
-          <a href="https://github.com/jsdoc3/jsdoc">JSDoc 3.3.2</a>
+          <a href="https://github.com/jsdoc3/jsdoc">JSDoc 3.4.0</a>
           
             on
-          September 1st 2015
+          February 18th 2016
         </div>
         <div>
           <a href="https://github.com/aral/fork-me-on-github-retina-ribbons">
