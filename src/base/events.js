@@ -18,7 +18,7 @@ const flatMap = flow(map, flatten);
  * Base Event class inherited by {@link Model} and {@link Collection}. It's not
  * meant to be used directly, and is only displayed here for completeness.
  */
-export default class Events extends EventEmitter {
+class Events extends EventEmitter {
 
   /**
    * @method Events#on
