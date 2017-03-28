@@ -1,4 +1,4 @@
-var _ = require('lodash');
+var _ = require('lodash')
 var Promise = global.testPromise;
 
 var drops = [
@@ -8,7 +8,8 @@ var drops = [
   'users', 'roles', 'photos', 'users_roles', 'info',
   'Customer', 'Settings', 'hostnames', 'instances', 'uuid_test',
   'parsed_users', 'tokens', 'thumbnails',
-  'lefts', 'rights', 'lefts_rights', 'organization'
+  'lefts', 'rights', 'lefts_rights', 'organization',
+  'locales', 'translations'
 ];
 
 module.exports = function(Bookshelf) {
@@ -146,7 +147,7 @@ module.exports = function(Bookshelf) {
       table.string('parsed_user_id');
       table.string('token');
     })
-    // 
+    //
     .createTable('lefts', function(table) {
       table.increments();
     })
@@ -163,8 +164,14 @@ module.exports = function(Bookshelf) {
       table.increments('organization_id');
       table.string('organization_name').notNullable();
       table.boolean('organization_is_active').defaultTo(false);
-    });
-
+    })
+    .createTable('locales', function(table) {
+      table.string('isoCode');
+    })
+    .createTable('translations', function(table) {
+      table.string('code');
+      table.string('customer');
+    })
   });
 
 };
