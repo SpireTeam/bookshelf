@@ -3,14 +3,11 @@
 
 import Promise from './promise';
 import events from 'events'
-import flatten from 'lodash/array/flatten';
-import { each, map } from 'lodash/collection';
-import { flow, once } from 'lodash/function';
+import { each, flatMap, once as _once } from 'lodash';
 
 const { EventEmitter } = events;
 
 const eventNames = text => text.split(/\s+/);
-const flatMap = flow(map, flatten);
 
 /**
  * @class Events
@@ -18,7 +15,7 @@ const flatMap = flow(map, flatten);
  * Base Event class inherited by {@link Model} and {@link Collection}. It's not
  * meant to be used directly, and is only displayed here for completeness.
  */
-class Events extends EventEmitter {
+export default class Events extends EventEmitter {
 
   /**
    * @method Events#on
@@ -36,7 +33,7 @@ class Events extends EventEmitter {
   on(nameOrNames, handler) {
     each(eventNames(nameOrNames), (name) => {
       super.on(name, handler)
-    })
+    });
     return this;
   }
 
@@ -75,7 +72,7 @@ class Events extends EventEmitter {
   trigger(nameOrNames, ...args) {
     each(eventNames(nameOrNames), (name) => {
       this.emit(name, ...args)
-    })
+    });
     return this;
   }
 
@@ -100,10 +97,8 @@ class Events extends EventEmitter {
    */
   triggerThen(nameOrNames, ...args) {
     const names = eventNames(nameOrNames);
-    const listeners = flatMap(names, this.listeners, this);
-    return Promise.map(listeners, listener =>
-      listener.apply(this, args)
-    );
+    const listeners = flatMap(names, name => this.listeners(name));
+    return Promise.map(listeners, listener => listener.apply(this, args));
   }
 
   /**
@@ -122,7 +117,7 @@ class Events extends EventEmitter {
    *   That callback to invoke only once when the event is fired.
    */
   once(name, callback) {
-    const wrapped = once((...args) => {
+    const wrapped = _once((...args) => {
       this.off(name, wrapped);
       return callback.apply(this, args);
     });
@@ -130,5 +125,3 @@ class Events extends EventEmitter {
     return this.on(name, wrapped);
   }
 }
-
-export default Events;
